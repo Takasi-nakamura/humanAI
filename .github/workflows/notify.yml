@@ -1,0 +1,50 @@
+# ============================================================
+# HumanAI 自律通知ワークフロー（Cloud Functions不要・完全無料版）
+# ------------------------------------------------------------
+# Cloud Functionsを経由せず、このワークフロー内で直接
+# scripts/check-notify.js を実行します。
+# Firebase Admin SDKでFirestoreに直接アクセスするため、
+# Blazeプランへのアップグレードは不要です。
+#
+# 必要なGitHub Secrets（Settings → Secrets and variables → Actions）:
+#   FIREBASE_PROJECT_ID   : FirebaseのプロジェクトID（例: humanai-app）
+#   FIREBASE_CLIENT_EMAIL : サービスアカウントのメールアドレス
+#   FIREBASE_PRIVATE_KEY  : サービスアカウントの秘密鍵
+#
+# ※ 旧版にあった NOTIFY_URL・NOTIFY_SECRET は不要になりました。
+# ============================================================
+
+name: HumanAI 自律通知チェック
+
+on:
+  schedule:
+    # 30分ごとに実行（UTC基準。日本時間 = UTC+9）
+    - cron: '*/30 * * * *'
+  # GitHubのActionsタブから手動でも実行できるようにする
+  workflow_dispatch:
+
+jobs:
+  check-notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js 20 をセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 依存パッケージをインストール
+        run: |
+          cd scripts
+          npm install
+
+      - name: 通知チェックを実行
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: node scripts/check-notify.js
