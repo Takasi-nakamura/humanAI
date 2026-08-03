@@ -1,0 +1,12 @@
+{
+  "name": "humanai-notify-scripts",
+  "version": "1.0.0",
+  "description": "HumanAI 自律通知スクリプト（GitHub Actions直接実行版）",
+  "main": "check-notify.js",
+  "scripts": {
+    "start": "node check-notify.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

@@ -1,0 +1,62 @@
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface-soft text-gray-900 dark:bg-surface-dark dark:text-gray-100;
+  font-family: 'Noto Sans JP', 'Hiragino Sans', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* スクロールバー（デスクトップのみ細く上品に） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(90, 103, 181, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Markdown本文の余白調整 */
+.prose-chat p { margin: 0.4em 0; }
+.prose-chat pre {
+  @apply bg-gray-900 text-gray-50 rounded-xl p-3 overflow-x-auto text-sm my-2;
+}
+.prose-chat code:not(pre code) {
+  @apply bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 px-1.5 py-0.5 rounded text-[0.85em];
+}
+.prose-chat a { @apply text-brand-600 dark:text-brand-300 underline underline-offset-2; }
+.prose-chat ul { @apply list-disc pl-5 my-1; }
+.prose-chat ol { @apply list-decimal pl-5 my-1; }
+.prose-chat table { @apply border-collapse w-full my-2 text-sm; }
+.prose-chat th, .prose-chat td { @apply border border-surface-border dark:border-surface-darkborder px-2 py-1; }
+
+/* 文字サイズ調整（設定画面から変更可能） */
+.text-size-small .chat-text { font-size: 13px; }
+.text-size-medium .chat-text { font-size: 15px; }
+.text-size-large .chat-text { font-size: 18px; }
+
+/* セーフエリア対応（スマホPWA） */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}

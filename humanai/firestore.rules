@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// HumanAI - Firestoreセキュリティルール
+// 各ユーザーは自分自身のデータ（users/{uid}以下）にのみ
+// 読み書きできる。他ユーザーのデータには一切アクセスできない。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
