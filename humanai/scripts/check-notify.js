@@ -51,6 +51,7 @@ async function main() {
 
 // チャットから送られた通知キューを処理
 async function processNotificationQueue(uid) {
+console.log('[HumanAI] キューチェック uid:', uid)
   console.log('[HumanAI] キューチェック uid:', uid)
   const queueSnap = await db.collection(`users/${uid}/notificationQueue`)
     .where('processed', '==', false)
