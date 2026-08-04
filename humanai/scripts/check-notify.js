@@ -51,6 +51,10 @@ async function main() {
 
 // チャットから送られた通知キューを処理
 async function processNotificationQueue(uid) {
+  console.log('[DEBUG] uid:', uid)
+  const allDocs = await db.collection(`users/${uid}/notificationQueue`).get()
+  console.log('[DEBUG] 全件数:', allDocs.size)
+  allDocs.docs.forEach(d => console.log('[DEBUG] doc:', d.id, JSON.stringify(d.data())))
   const queueSnap = await db.collection(`users/${uid}/notificationQueue`)
     .where('processed', '==', false)
     .limit(5)
