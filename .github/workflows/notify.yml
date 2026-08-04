@@ -39,7 +39,7 @@ jobs:
 
       - name: 依存パッケージをインストール
         run: |
-          cd scripts
+          cd humanai/scripts
           npm install
 
       - name: 通知チェックを実行
