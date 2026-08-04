@@ -51,15 +51,18 @@ async function main() {
 
 // チャットから送られた通知キューを処理
 async function processNotificationQueue(uid) {
+  console.log('[HumanAI] キューチェック uid:', uid)
   const queueSnap = await db.collection(`users/${uid}/notificationQueue`)
     .where('processed', '==', false)
     .limit(5)
     .get()
 
+  console.log('[HumanAI] キュー件数:', queueSnap.size)
   if (queueSnap.empty) return false
 
   const tokensSnap = await db.collection(`users/${uid}/fcmTokens`).get()
   const tokens = tokensSnap.docs.map(d => d.id)
+  console.log('[HumanAI] FCMトークン数:', tokens.length)
   if (tokens.length === 0) return false
 
   let sent = false
@@ -76,7 +79,6 @@ async function processNotificationQueue(uid) {
     } catch (e) {
       console.error(`[HumanAI] キュー通知送信エラー:`, e)
     }
-    // 処理済みにマーク
     await qDoc.ref.update({ processed: true, processedAt: FieldValue.serverTimestamp() })
   }
   return sent
