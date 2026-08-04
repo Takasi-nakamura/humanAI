@@ -1,9 +1,11 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send, Paperclip, X, StopCircle, ChevronDown, FileText, Image as ImageIcon } from 'lucide-react'
 import { MODEL_MAP } from '../lib/gemini'
 import { buildAttachment } from '../lib/dataTools'
 
-export default function ChatInput({ onSend, onStop, isSending, defaultModel, error }) {
+const MAX_CHARS = 4000
+
+export default function ChatInput({ onSend, onStop, isSending, defaultModel, error, initialText = '', onInitialTextConsumed }) {
   const [text, setText] = useState('')
   const [pendingFiles, setPendingFiles] = useState([])
   const [model, setModel] = useState(defaultModel || '3.5-flash-lite')
@@ -12,6 +14,15 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
   const [fileError, setFileError] = useState('')
   const fileInputRef = useRef(null)
   const textareaRef = useRef(null)
+
+  // 編集テキストが外から注入された場合にセット
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText)
+      textareaRef.current?.focus()
+      onInitialTextConsumed?.()
+    }
+  }, [initialText])
 
   const handleFiles = useCallback(async (fileList) => {
     setFileError('')
@@ -29,6 +40,7 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
   const handleSubmit = () => {
     if (isSending) return
     if (!text.trim() && pendingFiles.length === 0) return
+    if (text.length > MAX_CHARS) return
     onSend({ text, attachments: pendingFiles, model })
     setText('')
     setPendingFiles([])
@@ -43,10 +55,15 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
   }
 
   const autoResize = (e) => {
-    setText(e.target.value)
+    const val = e.target.value
+    if (val.length <= MAX_CHARS) setText(val)
     e.target.style.height = 'auto'
     e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'
   }
+
+  const charCount = text.length
+  const nearLimit = charCount > MAX_CHARS * 0.8
+  const overLimit = charCount > MAX_CHARS
 
   return (
     <div
@@ -80,9 +97,9 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
         </div>
       )}
 
-      <div className="flex items-end gap-2 bg-surface-soft dark:bg-surface-darksoft rounded-2xl border
-                      border-surface-border dark:border-surface-darkborder px-2 py-1.5 focus-within:ring-2
-                      focus-within:ring-brand-300 transition">
+      <div className={`flex items-end gap-2 bg-surface-soft dark:bg-surface-darksoft rounded-2xl border
+                      px-2 py-1.5 focus-within:ring-2 focus-within:ring-brand-300 transition
+                      ${overLimit ? 'border-red-400' : 'border-surface-border dark:border-surface-darkborder'}`}>
         <button
           onClick={() => fileInputRef.current?.click()}
           className="p-2 rounded-xl text-gray-400 hover:text-brand-500 hover:bg-white dark:hover:bg-surface-dark transition shrink-0"
@@ -147,7 +164,7 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={!text.trim() && pendingFiles.length === 0}
+            disabled={(!text.trim() && pendingFiles.length === 0) || overLimit}
             className="p-2.5 rounded-xl bg-brand-500 text-white hover:bg-brand-600 transition shrink-0
                       disabled:opacity-30 disabled:cursor-not-allowed"
             title="送信"
@@ -156,6 +173,13 @@ export default function ChatInput({ onSend, onStop, isSending, defaultModel, err
           </button>
         )}
       </div>
+
+      {/* 文字数カウンター */}
+      {nearLimit && (
+        <p className={`text-xs mt-1 text-right px-1 ${overLimit ? 'text-red-500' : 'text-gray-400'}`}>
+          {charCount} / {MAX_CHARS}
+        </p>
+      )}
     </div>
   )
 }

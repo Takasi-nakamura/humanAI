@@ -13,7 +13,6 @@ import Sidebar from '../components/Sidebar.jsx'
 import MessageBubble from '../components/MessageBubble.jsx'
 import TypingIndicator from '../components/TypingIndicator.jsx'
 import ChatInput from '../components/ChatInput.jsx'
-import QuickReplies from '../components/QuickReplies.jsx'
 
 export default function ChatPage() {
   const { sessionId } = useParams()
@@ -23,9 +22,10 @@ export default function ChatPage() {
 
   const [sessions, setSessions] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [editInjectedText, setEditInjectedText] = useState('')
   const scrollRef = useRef(null)
 
-  const { messages, setMessages, sendMessage, regenerateLast, stopGenerating, isSending, error } = useChat({
+  const { messages, setMessages, sendMessage, regenerateLast, editAndResend, stopGenerating, isSending, error } = useChat({
     uid: user?.uid,
     sessionId,
     apiKey,
@@ -85,7 +85,7 @@ export default function ChatPage() {
     try {
       const result = await shareSession(session, msgs)
       if (result === 'copied') alert('会話をクリップボードにコピーしました。')
-    } catch (e) {
+    } catch {
       alert('共有に失敗しました。')
     }
   }
@@ -118,24 +118,16 @@ export default function ChatPage() {
     }
   }
 
-  const handleQuickReply = (replyText) => {
-    handleSend({ text: replyText, attachments: [], model: settings.defaultModel })
-  }
-
-  const handleEdit = (message) => {
-    const input = document.querySelector('textarea')
-    if (input) {
-      input.value = message.text
-      input.focus()
+  // 編集して再送信
+  const handleEdit = (message, newText) => {
+    if (newText) {
+      // インライン編集から直接再送信
+      editAndResend(message, newText)
+    } else {
+      // 旧来のinput注入（フォールバック）
+      setEditInjectedText(message.text || '')
     }
   }
-
-  const lastAssistantWithReplies = [...messages].reverse().find(m => m.role === 'assistant' && m.quickReplies?.length)
-  const showQuickReplies = settings.quickRepliesEnabled
-    && !isSending
-    && messages.length > 0
-    && messages[messages.length - 1].role === 'assistant'
-    && messages[messages.length - 1].quickReplies?.length > 0
 
   return (
     <div className="h-screen flex bg-white dark:bg-surface-dark overflow-hidden">
@@ -179,19 +171,14 @@ export default function ChatPage() {
           {isSending && <TypingIndicator />}
         </div>
 
-        {showQuickReplies && (
-          <QuickReplies
-            replies={messages[messages.length - 1].quickReplies}
-            onSelect={handleQuickReply}
-          />
-        )}
-
         <ChatInput
           onSend={handleSend}
           onStop={stopGenerating}
           isSending={isSending}
           defaultModel={settings.defaultModel}
           error={error}
+          initialText={editInjectedText}
+          onInitialTextConsumed={() => setEditInjectedText('')}
         />
       </div>
     </div>

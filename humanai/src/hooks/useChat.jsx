@@ -1,11 +1,29 @@
-// HumanAI - チャット管理hook
-// Gemini API呼び出し、HumanAI Engineによるシステムプロンプト合成、
-// Firestoreへの履歴保存、会話要約トリガーを統合する。
+// HumanAI - チャット管理hook（改良版）
 import { useState, useCallback, useRef } from 'react'
 import { callGemini, toGeminiContents, MODEL_MAP } from '../lib/gemini'
-import { buildHumanAiSystemPrompt, buildQuickReplyInstruction, extractQuickReplies } from '../engine/humanaiEngine'
+import { buildHumanAiSystemPrompt, extractNotifyCommand } from '../engine/humanaiEngine'
 import { addMessage, maybeSummarize, getUserProfile, formatProfileForPrompt } from '../lib/memory'
 import { validateChatInput } from '../lib/validation'
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore'
+import { db } from '../lib/firebase'
+
+// FCM通知をFirestore経由でトリガーする（全セッションにも通知ログを残す）
+async function sendPushNotification(uid, message, sessionId) {
+  console.log('sendPushNotification呼ばれた', uid, message)
+  if (!uid) return
+try {
+    console.log('addDoc開始')
+    const docRef = await addDoc(collection(db, 'users', uid, 'notificationQueue'), {
+      message,
+      sessionId: sessionId || null,
+      createdAt: serverTimestamp(),
+      processed: false,
+    })
+    console.log('Firestore書き込み成功', docRef.id)
+  } catch (e) {
+    console.error('通知送信エラー:', e.code, e.message)
+  }
+}
 
 export function useChat({ uid, sessionId, apiKey, settings }) {
   const [messages, setMessages] = useState([])
@@ -44,22 +62,17 @@ export function useChat({ uid, sessionId, apiKey, settings }) {
         await addMessage(uid, sessionId, userMessage)
       }
 
-      // --- HumanAI Engine: 内部分析結果をシステムプロンプトへ合成 ---
       let profileText = ''
       if (settings.memoryEnabled && uid) {
         const profile = await getUserProfile(uid)
         profileText = formatProfileForPrompt(profile)
       }
 
-      let systemPrompt = buildHumanAiSystemPrompt({
+      const systemPrompt = buildHumanAiSystemPrompt({
         baseSystemPrompt: settings.systemPrompt,
         userProfile: profileText,
-        memorySummary: null, // セッション要約はcontents側で別途注入（App.jsx側でセット済み想定）
+        memorySummary: null,
       })
-
-      if (settings.quickRepliesEnabled) {
-        systemPrompt += buildQuickReplyInstruction()
-      }
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -76,22 +89,36 @@ export function useChat({ uid, sessionId, apiKey, settings }) {
         signal: controller.signal,
       })
 
-      const { text: cleanedText, quickReplies } = settings.quickRepliesEnabled
-        ? extractQuickReplies(result.text)
-        : { text: result.text, quickReplies: [] }
+      // 通知コマンドを抽出
+      console.log('AI生テキスト:', result.text)
+      const { text: cleanedText, notifyMessage } = extractNotifyCommand(result.text)
 
       const assistantMessage = {
         role: 'assistant',
         text: cleanedText,
         modelUsed: modelKey,
-        quickReplies,
+        quickReplies: [],
       }
 
-      const finalMessages = [...nextMessages, assistantMessage]
+      let finalMessages = [...nextMessages, assistantMessage]
+
+      // 通知が要求されていた場合
+      if (notifyMessage) {
+        await sendPushNotification(uid, notifyMessage, sessionId)
+        const notifLogMessage = {
+          role: 'notification',
+          text: notifyMessage,
+        }
+        finalMessages = [...finalMessages, notifLogMessage]
+      }
+
       setMessages(finalMessages)
 
       if (uid && sessionId) {
         await addMessage(uid, sessionId, assistantMessage)
+        if (notifyMessage) {
+          await addMessage(uid, sessionId, { role: 'notification', text: notifyMessage })
+        }
         if (settings.memoryEnabled) {
           maybeSummarize({ uid, sessionId, messages: finalMessages, apiKey, modelId }).catch(() => {})
         }
@@ -121,9 +148,19 @@ export function useChat({ uid, sessionId, apiKey, settings }) {
     return sendMessage({ text: lastUserMsg.text, attachments: lastUserMsg.attachments || [], modelOverride })
   }, [messages, sendMessage])
 
+  // メッセージ編集して再送信
+  const editAndResend = useCallback(async (message, newText, modelOverride) => {
+    const idx = messages.findIndex(m => m === message || m.id === message.id)
+    if (idx === -1) return
+    // 編集したメッセージ以降を削除して再送信
+    const trimmed = messages.slice(0, idx)
+    setMessages(trimmed)
+    return sendMessage({ text: newText, attachments: message.attachments || [], modelOverride })
+  }, [messages, sendMessage])
+
   const stopGenerating = useCallback(() => {
     abortRef.current?.abort()
   }, [])
 
-  return { messages, setMessages: loadMessages, sendMessage, regenerateLast, stopGenerating, isSending, error }
+  return { messages, setMessages: loadMessages, sendMessage, regenerateLast, editAndResend, stopGenerating, isSending, error }
 }
